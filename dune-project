@@ -19,7 +19,7 @@
  (name ocaml_fx)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune dream dream-html algaeff)
+ (depends ocaml dune dream dream-html algaeff forester asai)
  (tags
   (topics "to describe" your project)))
 
