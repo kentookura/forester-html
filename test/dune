@@ -1,2 +1,2 @@
 (test
- (name test_ocaml_fx))
+ (name test_forester_html))

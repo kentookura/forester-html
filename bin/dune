@@ -1,5 +1,5 @@
 (executable
- (public_name ocaml_fx)
+ (public_name forester_html)
  (name main)
  (preprocess
   (pps lwt_ppx))

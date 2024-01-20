@@ -1,6 +1,7 @@
 (lang dune 3.12)
 
-(name ocaml_fx)
+(name forester_html)
+(version a831375)
 
 (generate_opam_files true)
 
@@ -16,7 +17,7 @@
 (documentation https://url/to/documentation)
 
 (package
- (name ocaml_fx)
+ (name forester_html)
  (synopsis "A short synopsis")
  (description "A longer description")
  (depends ocaml dune dream dream-html algaeff forester asai)
