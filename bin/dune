@@ -1,0 +1,6 @@
+(executable
+ (public_name ocaml_fx)
+ (name main)
+ (preprocess
+  (pps lwt_ppx))
+ (libraries forester.core dream dream-html Render_html algaeff))
