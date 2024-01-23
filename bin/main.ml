@@ -1,22 +1,21 @@
 module Tty = Asai.Tty.Make (Core.Reporter.Message)
 open Render_html
-open Render_effect
+open Loader
 
 let () =
-  let fatal diagnostics =
-    Tty.display diagnostics;
-    exit 1
-  in
+  let fatal diagnostics = Tty.display diagnostics in
   Eio_main.run @@ fun env ->
   Core.Reporter.run ~emit:Tty.display ~fatal @@ fun () ->
-  let forest = Loader.load env @@ fun () -> Loader.forest "./static" in
+  let forest = load env @@ fun () -> Loader.forest "./static" in
+  let module Forest = struct
+    let forest = forest
+  end in
   let param s f req = Dream_html.respond @@ f @@ Dream.param req s in
-  let module Renderer = (val render forest) in
+  let module Renderer = Renderer (Forest) in
   Dream.run @@ Dream.logger
   @@ Dream.router
        [
-         Dream.get "/" (fun _ ->
-             Dream_html.respond @@ Dream_html.HTML.div [] [ Renderer.index ]);
+         Dream.get "/" (fun _ -> Dream_html.respond Renderer.index);
          Dream.get "/forest/:address" @@ param "address" Renderer.page;
          Dream.get "/tooltip/:tree" @@ param "address" Renderer.tooltip;
          ( Dream.get "/diagnostics" @@ fun _ ->
