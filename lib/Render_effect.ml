@@ -51,6 +51,7 @@ module Render = struct
 end
 
 module type Handler = sig
+  val index : node
   val page : string -> node
   val tooltip : string -> node
   val query : string -> node

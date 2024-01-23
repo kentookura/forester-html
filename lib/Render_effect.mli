@@ -3,6 +3,7 @@ open Forest
 open Dream_html
 
 module type Handler = sig
+  val index : node
   val page : string -> node
   val tooltip : string -> node
   val query : string -> node

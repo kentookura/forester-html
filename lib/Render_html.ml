@@ -1,15 +1,35 @@
-(*  TODO: Sentence case*)
-(*  TODO: numbering logic, can prolly do it with css *)
-
 open Core
 open Sem
 open Dream_html
 open HTML
 open Render_effect
-
-(* include Render_effect *)
 module Render_effect = Render_effect
 open Forester
+
+let _render_option r o = match o with Some o -> r o | None -> txt ""
+let _render_transclusion _doc = txt ""
+
+let rec render (forest : Forest.forest) =
+  (module struct
+    module A = Analysis
+    module M = A.Map
+
+    let page addr =
+      match M.find_opt addr forest.trees with
+      | Some t -> base_template ~index:false @@ render_tree t
+      | None -> base_template ~index:false @@ fourohfour addr
+
+    let index = base_template ~index:true @@ div [] []
+    let tooltip addr = div [] [ txt "%s" addr ]
+    let query addr = div [] [ txt "%s" addr ]
+    let toc addr = div [] [ txt "%s" addr ]
+    let author addr = div [] [ txt "%s" addr ]
+    let get_doc addr = div [] [ txt "%s" addr ]
+    let parents addr = div [] [ txt "%s" addr ]
+    let children addr = div [] [ txt "%s" addr ]
+    let backlinks addr = div [] [ txt "%s" addr ]
+    let transclusion addr = div [] [ txt "%s" addr ]
+  end : Handler)
 
 (* module H : Handler = struct *)
 (*   (* let parse _addr = div [] [] *) *)
@@ -17,10 +37,7 @@ open Forester
 (*   (* let route _addr = div [] [] *) *)
 (* end *)
 
-let _render_option r o = match o with Some o -> r o | None -> txt ""
-let _render_transclusion _doc = txt ""
-
-let rec render_verbatim (located : Sem.node Range.located) =
+and render_verbatim (located : Sem.node Range.located) =
   match located.value with
   | Sem.Text t -> txt "%s" t
   | Sem.Math (_, xs) -> div [] @@ List.map render_verbatim xs
@@ -42,40 +59,42 @@ and render_node (tree : Sem.node) =
   (*     match E.get_doc addr with *)
   (*     | None -> txt "" *)
   (*     | Some doc -> render_transclusion doc) *)
-  | Sem.Query (_, _)
-  | Sem.Xml_tag (_, _, _)
-  | Sem.Unresolved _ | Sem.Embed_tex _ | Sem.Img _
-  | Sem.Block (_, _)
-  | Sem.If_tex (_, _)
-  | Sem.Prim (_, _)
-  | Sem.Object _ ->
-      Dream_html.txt "%s" "todo"
+  | Sem.Query (_, _) -> div [] []
+  | Sem.Xml_tag (_, _, _) -> div [] []
+  | Sem.Unresolved _ -> div [] []
+  | Sem.Embed_tex _ -> div [] []
+  | Sem.Img _ -> div [] []
+  | Sem.Block (_, _) -> div [] []
+  | Sem.If_tex (_, _) -> div [] []
+  | Sem.Prim (_, _) -> div [] []
+  | Sem.Object _ -> Dream_html.txt "%s" "todo"
   | _ -> Dream_html.txt "%s" "todo"
 
-let toc_item content =
+and toc_item content =
   li []
     [
       a [ href ""; class_ "bullet"; title_ "%s" content ] [ txt "%s" "■" ];
       a [] [ span [ class_ "toc-item-label" ] [ txt "%s" content ] ];
     ]
 
-let toc doc = ul [ class_ "block" ] (List.map toc_item doc)
+and toc doc = ul [ class_ "block" ] (List.map toc_item doc)
 
-let backmatter (doc : tree) =
+and backmatter (doc : tree) =
   let content = match doc.taxon with Some t -> [ txt "%s" t ] | None -> [] in
   section [ class_ "block" ] content
 
-let mainmatter ?mode:_string _tree = div [] [ backmatter _tree ]
-let addr _ = div [] []
-let source_path _ = div [] []
-let author _ = div [] []
-let date _ = li [] [ a [] [] ]
+(* and mainmatter ?mode:_string _tree = div [] [ backmatter _tree ] *)
+and mainmatter ?mode:_string tree = div [] [ render_body tree.body ]
+and addr _ = div [] []
+and source_path _ = div [] []
+and author _ = div [] []
+and date _ = li [] [ a [] [] ]
 
-let meta_item (_i, (t : Sem.node Range.located list)) =
+and meta_item (_i, (t : Sem.node Range.located list)) =
   li [ class_ "meta-item" ]
   @@ (t |> List.map (fun (n : Sem.node Range.located) -> render_node n.value))
 
-let render_date (date : Prelude.Date.t) =
+and render_date (date : Prelude.Date.t) =
   let open Prelude.Date in
   let m =
     match month date with
@@ -100,7 +119,7 @@ let render_date (date : Prelude.Date.t) =
   let y = Int.to_string @@ year date in
   m ^ " " ^ d ^ ", " ^ y
 
-let render_meta (tree : tree) =
+and render_meta (tree : tree) =
   div
     [ class_ "metadata" ]
     [
@@ -120,7 +139,7 @@ let render_meta (tree : tree) =
         ];
     ]
 
-let frontmatter (tree : tree) =
+and frontmatter (tree : tree) =
   let taxon = match tree.taxon with None -> "" | Some t -> t in
   let title =
     match tree.title with
@@ -132,7 +151,7 @@ let frontmatter (tree : tree) =
   let slug =
     match tree.addr with
     | None -> div [] []
-    | Some s -> a [ class_ "slug"; href "%s.html" s ] [ txt "[%s]" s ]
+    | Some s -> a [ class_ "slug"; href "%s" s ] [ txt "[%s]" s ]
   in
   header []
     [
@@ -140,7 +159,11 @@ let frontmatter (tree : tree) =
       render_meta tree;
     ]
 
-let render_tree (doc : tree) =
+and render_body bdy =
+  div []
+  @@ List.map (fun (n : Sem.node Range.located) -> render_node n.value) bdy
+
+and render_tree (doc : tree) =
   let id =
     match doc.addr with None -> id "unknown_tree" | Some addr -> id "%s" addr
   in
@@ -151,7 +174,10 @@ let render_tree (doc : tree) =
         [ class_ "block"; id ]
         [
           details [ open_ ]
-            [ summary [] [ frontmatter doc ]; div [ class_ "tree-content" ] [] ];
+            [
+              summary [] [ frontmatter doc ];
+              div [ class_ "tree-content" ] [ mainmatter doc ];
+            ];
         ];
       nav [ (*id "toc" *) ]
         [ div [ class_ "block" ] [ h1 [] [ txt "Table of contents" ]; toc [] ] ];
@@ -166,7 +192,7 @@ and with_fallback fof f got = match got with Some t -> f t | None -> fof
 (*   Forest.complete ~forest "" |> List.of_seq *)
 (*   |> List.map (fun (addr, title) -> div [] [ txt "%s" addr; txt "%s" title ]) *)
 
-and base_template doc =
+and base_template ~index doc =
   html
     [ lang "en" ]
     [
@@ -220,33 +246,10 @@ and base_template doc =
             [
               nav
                 [ class_ "nav" ]
-                [
-                  div
-                    [ class_ "logo" ]
-                    [ a [ href "/index.html" ] [ txt "« Home" ] ];
-                ];
+                (if not index then
+                   [ div [ class_ "logo" ] [ a [ href "/" ] [ txt "« Home" ] ] ]
+                 else []);
             ];
           div [ id "grid-wrapper" ] [ doc ];
         ];
     ]
-
-let render (forest : Forest.forest) =
-  (module struct
-    module A = Analysis
-    module M = A.Map
-
-    let page addr =
-      match M.find_opt addr forest.trees with
-      | Some t -> base_template @@ render_tree t
-      | None -> fourohfour addr
-
-    let tooltip addr = div [] [ txt "%s" addr ]
-    let query addr = div [] [ txt "%s" addr ]
-    let toc addr = div [] [ txt "%s" addr ]
-    let author addr = div [] [ txt "%s" addr ]
-    let get_doc addr = div [] [ txt "%s" addr ]
-    let parents addr = div [] [ txt "%s" addr ]
-    let children addr = div [] [ txt "%s" addr ]
-    let backlinks addr = div [] [ txt "%s" addr ]
-    let transclusion addr = div [] [ txt "%s" addr ]
-  end : Handler)
