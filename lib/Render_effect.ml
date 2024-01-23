@@ -4,6 +4,29 @@ open Core
 open Effect.Deep
 open Scanner
 open Dream_html
+module S = Set.Make (String)
+module A = Analysis
+module M = A.Map
+module Tbl = A.Tbl
+module Gph = A.Gph
+
+let get_sorted_trees addrs (forest : Forest.forest) : Sem.tree list =
+  let find addr =
+    match M.find_opt addr forest.trees with None -> [] | Some doc -> [ doc ]
+  in
+  Sem.Util.sort @@ List.concat_map find @@ S.elements addrs
+
+let _get_parents scope (analysis : A.analysis) =
+  get_sorted_trees @@ S.of_list @@ Gph.succ analysis.transclusion_graph scope
+
+let _get_children scope (analysis : A.analysis) =
+  get_sorted_trees @@ S.of_list @@ Gph.pred analysis.transclusion_graph scope
+
+let _get_contributions scope (analysis : A.analysis) =
+  get_sorted_trees @@ S.of_list @@ Tbl.find_all analysis.author_pages scope
+
+let _get_backlinks scope (analysis : A.analysis) =
+  get_sorted_trees @@ S.of_list @@ Gph.succ analysis.link_graph scope
 
 type _ Effect.t +=
   | Page : string -> Dream_html.node t
@@ -44,7 +67,7 @@ module type Handler = sig
 end
 
 module Run (H : Handler) = struct
-  let run f =
+  let _run f =
     Effect.Deep.try_with f ()
     @@ {
          effc =
@@ -69,9 +92,6 @@ module Run (H : Handler) = struct
        }
 end
 
-module A = Analysis
-module M = A.Map
-
 let _eval_query q =
   let parse_query q = q in
   parse_query q |> fun a -> perform (Query a)
@@ -81,7 +101,7 @@ module Loader = struct
   let make_dir ~env dir = Eio.Path.(Eio.Stdenv.fs env / dir)
   let make_dirs ~env = List.map (make_dir ~env)
 
-  let run (env : Eio_unix.Stdenv.base) f =
+  let load (env : Eio_unix.Stdenv.base) f =
     try_with f ()
     @@ {
          effc =

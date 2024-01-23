@@ -5,8 +5,17 @@ open Core
 open Sem
 open Dream_html
 open HTML
-include Render_effect
+open Render_effect
+
+(* include Render_effect *)
 module Render_effect = Render_effect
+open Forester
+
+(* module H : Handler = struct *)
+(*   (* let parse _addr = div [] [] *) *)
+(*   (* let load_forest _addr = div [] [] *) *)
+(*   (* let route _addr = div [] [] *) *)
+(* end *)
 
 let _render_option r o = match o with Some o -> r o | None -> txt ""
 let _render_transclusion _doc = txt ""
@@ -220,3 +229,24 @@ and base_template doc =
           div [ id "grid-wrapper" ] [ doc ];
         ];
     ]
+
+let render (forest : Forest.forest) =
+  (module struct
+    module A = Analysis
+    module M = A.Map
+
+    let page addr =
+      match M.find_opt addr forest.trees with
+      | Some t -> base_template @@ render_tree t
+      | None -> fourohfour addr
+
+    let tooltip addr = div [] [ txt "%s" addr ]
+    let query addr = div [] [ txt "%s" addr ]
+    let toc addr = div [] [ txt "%s" addr ]
+    let author addr = div [] [ txt "%s" addr ]
+    let get_doc addr = div [] [ txt "%s" addr ]
+    let parents addr = div [] [ txt "%s" addr ]
+    let children addr = div [] [ txt "%s" addr ]
+    let backlinks addr = div [] [ txt "%s" addr ]
+    let transclusion addr = div [] [ txt "%s" addr ]
+  end : Handler)

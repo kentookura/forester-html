@@ -16,10 +16,6 @@ module type Handler = sig
 end
 
 module Loader : sig
-  val run : Eio_unix.Stdenv.base -> (unit -> 'a) -> 'a
+  val load : Eio_unix.Stdenv.base -> (unit -> 'a) -> 'a
   val forest : string -> forest
-end
-
-module Run (_ : Handler) : sig
-  val run : (unit -> 'a) -> 'a
 end
