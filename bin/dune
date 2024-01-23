@@ -3,4 +3,10 @@
  (name main)
  (preprocess
   (pps lwt_ppx))
- (libraries forester.core dream dream-html Render_html algaeff))
+ (libraries
+  forester.frontend
+  forester.core
+  dream
+  dream-html
+  Render_html
+  algaeff))
