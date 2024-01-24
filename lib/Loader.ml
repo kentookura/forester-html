@@ -1,13 +1,12 @@
 open Effect
 open Effect.Deep
 open Forester
+open Forest
 open Core
 open Lexing
 
 (* module Loader *)
-type _ Effect.t +=
-  | Parse : string -> Syn.t t
-  | Forest : string -> Forest.forest t
+type _ Effect.t += Parse : string -> Syn.t t | Forest : string -> forest t
 
 module S = Algaeff.Sequencer.Make (struct
   type t = Eio.Fs.dir_ty Eio.Path.t

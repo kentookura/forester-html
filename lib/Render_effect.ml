@@ -17,11 +17,6 @@ type _ Effect.t +=
   | Toc : string -> Dream_html.node t
   | Get_doc : addr -> Dream_html.node t
   | Author : string -> Dream_html.node t
-(* | Parents : addr -> Dream_html.node t *)
-(* | Parse : string -> Code.node Range.located list t *)
-(* | Route : addr -> string t *)
-(* | Children : addr -> Dream_html.node t *)
-(* | Backlinks : addr -> Sem.tree list t *)
 
 let get_sorted_trees addrs (forest : Forest.forest) : Sem.tree list =
   let find addr =
@@ -54,13 +49,6 @@ module type Handler = sig
   val page : string -> node
   val tooltip : string -> node
   val query : string -> node
-  (* val toc : string -> node *)
-  (* val author : string -> node *)
-  (* val get_doc : string -> node *)
-  (* val parents : string -> node *)
-  (* val children : string -> node *)
-  (* val backlinks : string -> node *)
-  (* val transclusion : string -> node *)
 end
 
 module Run (H : Handler) = struct
@@ -77,14 +65,6 @@ module Run (H : Handler) = struct
              | Page addr -> resume @@ fun () -> H.page addr
              | Tooltip addr -> resume @@ fun () -> H.tooltip addr
              | Query string -> resume @@ fun () -> H.query string
-             (* | Toc addr -> resume @@ fun () -> H.toc addr *)
-             (* | Forest dir -> resume @@ fun () -> H.load_forest dir *)
-             (* | Author addr -> resume @@ fun () -> H.author addr *)
-             (* | Route addr -> resume @@ fun () -> string t *)
-             (* | Get_doc addr -> resume @@ fun () -> Dream_html.node t *)
-             (* | Parents addr -> resume @@ fun () -> Dream_html.node t *)
-             (* | Children addr -> resume @@ fun () -> Dream_html.node t *)
-             (* | Backlinks addr -> resume @@ fun () -> Sem.tree list t *)
              | _ -> None);
        }
 end

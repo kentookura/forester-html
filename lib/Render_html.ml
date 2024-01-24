@@ -6,8 +6,7 @@ module Render_effect = Render_effect
 module Loader = Loader
 open Forester
 
-let _render_option r o = match o with Some o -> r o | None -> txt ""
-(* let render_transclusion _doc = txt "" *)
+type cfg = { counter : int ref; top : bool }
 
 module type F = sig
   val forest : Forest.forest
@@ -18,20 +17,29 @@ module Renderer (Forest : F) = struct
   module M = A.Map
 
   let rec page addr =
+    let cfg = { top = true; counter = ref 0 } in
+    let opts =
+      Sem.
+        {
+          title_override = None;
+          taxon_override = None;
+          toc = false;
+          show_heading = true;
+          expanded = true;
+          numbered = false;
+          show_metadata = true;
+        }
+    in
     match M.find_opt addr Forest.forest.trees with
-    | Some t -> base_template ~index:false @@ render_tree t
+    | Some t -> base_template ~index:false @@ render_tree ~cfg ~opts t
     | None -> base_template ~index:false @@ fourohfour addr
+
+  and render ~cfg : Sem.t -> node =
+   fun t -> div [] @@ List.map (render_node ~cfg) t
 
   (* and index = base_template ~index:true @@ div [] [] *)
   and tooltip addr = div [] [ txt "%s" addr ]
   and query addr = div [] [ txt "%s" addr ]
-  (* let toc addr = div [] [ txt "%s" addr ] *)
-  (* let author addr = div [] [ txt "%s" addr ] *)
-  (* let get_doc addr = div [] [ txt "%s" addr ] *)
-  (* let parents addr = div [] [ txt "%s" addr ] *)
-  (* let children addr = div [] [ txt "%s" addr ] *)
-  (* let backlinks addr = div [] [ txt "%s" addr ] *)
-  (* let transclusion addr = div [] [ txt "%s" addr ] *)
 
   and render_verbatim (located : Sem.node Range.located) =
     match located.value with
@@ -41,8 +49,8 @@ module Renderer (Forest : F) = struct
         Reporter.fatalf ?loc:located.loc Type_error
           "Render_verbatim: cannot render this kind of object."
 
-  and render_node (tree : Sem.node) =
-    match tree with
+  and render_node ~cfg (tree : Sem.node Range.located) =
+    match tree.value with
     | Sem.Text t -> txt "%s" t
     | Sem.Math (mode, body) ->
         let attrs = match mode with Inline -> [] | Display -> [ id "" ] in
@@ -51,16 +59,16 @@ module Renderer (Forest : F) = struct
         let t =
           match title with
           | None -> txt "%s" dest
-          | Some node -> render_body node
+          | Some node -> render_body ~cfg node
         in
         a [ href "%s" dest ] [ t ]
     (*     match E.get_doc dest with *)
     (*     | Some _ -> render_internal_link ~title ~addr:dest *)
     (*     | None -> render_external_link ~title ~addr:dest) *)
-    | Sem.Transclude (_opts, addr) -> (
+    | Sem.Transclude (opts, addr) -> (
         match M.find_opt addr Forest.forest.trees with
         | None -> txt ""
-        | Some doc -> render_tree doc)
+        | Some doc -> render_transclusion ~cfg ~opts doc)
     (*     match E.get_doc addr with *)
     | Sem.Query (a, b) -> render_query (a, b)
     | Sem.Xml_tag (a, b, c) -> ( match (a, b, c) with _ -> div [] [])
@@ -74,18 +82,28 @@ module Renderer (Forest : F) = struct
         match (a, b) with (_ : t), (_ : t) -> div [] [ txt "%s" "iftex" ])
     | Sem.Prim ((p : Prim.t), (c : t)) -> (
         match (p, c) with
-        | `Em, t -> render_body t
-        | `Strong, t -> render_body t
-        | `Ul, t -> render_body t
-        | `Li, t -> render_body t
-        | `Blockquote, t -> render_body t
-        | `Code, t -> render_body t
-        | `Ol, t -> render_body t
-        | `Pre, t -> render_body t
-        | `P, t -> render_body t)
+        | `Em, t -> em [] [ render ~cfg t ]
+        | `Strong, t -> strong [] [ render ~cfg t ]
+        | `Ul, t -> ul [] [ render ~cfg t ]
+        | `Li, t -> li [] [ render ~cfg t ]
+        | `Blockquote, t -> blockquote [] [ render ~cfg t ]
+        | `Code, t -> code [] [ render ~cfg t ]
+        | `Ol, t -> ol [] [ render ~cfg t ]
+        | `Pre, t -> pre [] [ render ~cfg t ]
+        | `P, t -> HTML.p [] [ render ~cfg t ])
     | Sem.Unresolved a -> ( match a with _ -> div [] [ txt "unresolved" ])
     | Sem.Object _ -> div [] [ txt "Can't render object" ]
     | _ -> Dream_html.txt "%s" "todo"
+
+  and render_transclusion ~cfg ~opts doc =
+    let cfg =
+      let ctr = cfg.counter in
+      let ix = if opts.numbered then !ctr + 1 else !ctr in
+      ctr := ix;
+      let counter = ref 0 in
+      { counter; top = false }
+    in
+    render_tree ~cfg ~opts doc
 
   and render_query (a, b) =
     let open Core in
@@ -116,15 +134,14 @@ module Renderer (Forest : F) = struct
     section [ class_ "block" ] content
 
   (* and mainmatter ?mode:_string _tree = div [] [ backmatter _tree ] *)
-  and mainmatter ?mode:_string tree = div [] [ render_body tree.body ]
+  and mainmatter ?mode:_string ~cfg tree = div [] [ render_body ~cfg tree.body ]
   and addr _ = div [] []
   and source_path _ = div [] []
   and author _ = div [] []
   and date _ = li [] [ a [] [] ]
 
-  and meta_item (_i, (t : Sem.node Range.located list)) =
-    li [ class_ "meta-item" ]
-    @@ (t |> List.map (fun (n : Sem.node Range.located) -> render_node n.value))
+  and meta_item ~cfg (_i, (t : Sem.node Range.located list)) =
+    li [ class_ "meta-item" ] @@ (t |> List.map (render_node ~cfg))
 
   and render_date (date : Prelude.Date.t) =
     let open Prelude.Date in
@@ -171,7 +188,7 @@ module Renderer (Forest : F) = struct
           ];
       ]
 
-  and frontmatter (tree : tree) =
+  and frontmatter ~cfg ?(_toc = true) (tree : tree) =
     let taxon = match tree.taxon with None -> "" | Some t -> t in
     let title =
       match tree.title with
@@ -179,7 +196,7 @@ module Renderer (Forest : F) = struct
       | Some ts ->
           div []
           @@ List.map
-               (fun (t : Sem.node Range.located) -> render_node t.value)
+               (fun (t : Sem.node Range.located) -> render_node ~cfg t)
                ts
     in
     let slug =
@@ -193,11 +210,21 @@ module Renderer (Forest : F) = struct
         render_meta tree;
       ]
 
-  and render_body bdy =
+  and render_body ~cfg bdy =
     div []
-    @@ List.map (fun (n : Sem.node Range.located) -> render_node n.value) bdy
+    @@ List.map (fun (n : Sem.node Range.located) -> render_node ~cfg n) bdy
 
-  and render_tree (doc : tree) =
+  and render_tree ~cfg ~opts (doc : tree) =
+    let doc =
+      match opts.title_override with
+      | Some _ as title -> { doc with title }
+      | None -> doc
+    in
+    let doc =
+      match opts.taxon_override with
+      | Some _ as taxon -> { doc with taxon }
+      | None -> doc
+    in
     let id =
       match doc.addr with
       | None -> id "unknown_tree"
@@ -211,8 +238,8 @@ module Renderer (Forest : F) = struct
           [
             details [ open_ ]
               [
-                summary [] [ frontmatter doc ];
-                div [ class_ "tree-content" ] [ mainmatter doc ];
+                summary [] [ frontmatter ~cfg doc ];
+                div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
               ];
           ];
         nav
@@ -224,12 +251,6 @@ module Renderer (Forest : F) = struct
 
   and fourohfour addr = txt "%s not found" addr
   and with_fallback fof f got = match got with Some t -> f t | None -> fof
-
-  (* and index = *)
-  (*   let open Dream_html in *)
-  (*   let open HTML in *)
-  (*   Forest.complete ~forest "" |> List.of_seq *)
-  (*   |> List.map (fun (addr, title) -> div [] [ txt "%s" addr; txt "%s" title ]) *)
 
   and base_template ~index doc =
     html

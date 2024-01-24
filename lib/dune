@@ -1,4 +1,3 @@
 (library
- (libraries dream-html forester.core forester.frontend)
- ;;(modules render_effect render_html scanner graphviz)
+ (libraries dream-html forester.core forester.frontend eio)
  (name Render_html))
