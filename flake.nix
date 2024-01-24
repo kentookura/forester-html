@@ -11,8 +11,8 @@
       in {
         devShell = with pkgs;
           mkShell {
-            buildInputs = [ libev opam fswatch ];
-            shellHook = "eval $opam env";
+            buildInputs = [ libev opam fswatch pkg-config openssl];
+            shellHook = "eval $(opam env --switch=5.1.1)";
           };
       });
 }
