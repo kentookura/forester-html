@@ -252,7 +252,19 @@ module Renderer (Forest : F) = struct
       | None -> id "unknown_tree"
       | Some addr -> id "%s" addr
     in
-    let _attrs = [] in
+    let _attrs =
+      [
+        ("expanded", string_of_bool opts.expanded);
+        ("show-heading", string_of_bool opts.show_heading);
+        ("show-metadata", string_of_bool opts.show_metadata);
+        ("toc", string_of_bool opts.toc);
+        ("numbered", string_of_bool opts.numbered);
+        (* ( "root", *)
+        (*   string_of_bool *)
+        (*   @@ Option.fold doc.addr ~none:false ~some:(fun addr -> E.is_root addr) *)
+        (* ); *)
+      ]
+    in
     let _seen =
       match doc.addr with None -> false | Some addr -> List.mem addr cfg.seen
     in
