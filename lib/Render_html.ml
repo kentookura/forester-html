@@ -6,7 +6,12 @@ module Render_effect = Render_effect
 module Loader = Loader
 open Forester
 
-type cfg = { counter : int ref; top : bool }
+type cfg = {
+  counter : int ref;
+  top : bool;
+  in_backmatter : bool;
+  seen : addr list;
+}
 
 module type F = sig
   val forest : Forest.forest
@@ -17,7 +22,9 @@ module Renderer (Forest : F) = struct
   module M = A.Map
 
   let rec page addr =
-    let cfg = { top = true; counter = ref 0 } in
+    let cfg =
+      { top = true; counter = ref 0; in_backmatter = false; seen = [] }
+    in
     let opts =
       Sem.
         {
@@ -101,7 +108,7 @@ module Renderer (Forest : F) = struct
       let ix = if opts.numbered then !ctr + 1 else !ctr in
       ctr := ix;
       let counter = ref 0 in
-      { counter; top = false }
+      { cfg with counter; top = false }
     in
     render_tree ~cfg ~opts doc
 
@@ -127,11 +134,26 @@ module Renderer (Forest : F) = struct
 
   and toc doc = ul [ class_ "block" ] (List.map toc_item doc)
 
-  and backmatter (doc : tree) =
-    let content =
-      match doc.taxon with Some t -> [ txt "%s" t ] | None -> []
+  and backmatter ~cfg (doc : Sem.tree) =
+    let cfg = { cfg with counter = ref 0; in_backmatter = true; top = false } in
+    let _opts =
+      Sem.
+        {
+          title_override = None;
+          taxon_override = None;
+          toc = false;
+          show_heading = true;
+          expanded = false;
+          numbered = false;
+          show_metadata = true;
+        }
     in
-    section [ class_ "block" ] content
+    let taxon = match doc.taxon with Some t -> [ txt "%s" t ] | None -> [] in
+    section [ class_ "block" ]
+    @@ taxon
+    @ [
+        details [] [ summary [] [ frontmatter ~cfg doc; mainmatter ~cfg doc ] ];
+      ]
 
   (* and mainmatter ?mode:_string _tree = div [] [ backmatter _tree ] *)
   and mainmatter ?mode:_string ~cfg tree = div [] [ render_body ~cfg tree.body ]
@@ -230,24 +252,44 @@ module Renderer (Forest : F) = struct
       | None -> id "unknown_tree"
       | Some addr -> id "%s" addr
     in
+    let _attrs = [] in
+    let _seen =
+      match doc.addr with None -> false | Some addr -> List.mem addr cfg.seen
+    in
+    let _trace k =
+      match doc.addr with
+      | None -> k ()
+      | Some addr ->
+          Reporter.tracef "when rendering tree at address `%s` to HTML" addr k
+    in
+    let cfg =
+      match doc.addr with
+      | None -> cfg
+      | Some addr -> { cfg with seen = addr :: cfg.seen }
+    in
 
     article []
+    @@ [
+         section
+           [ class_ "block"; id ]
+           [
+             details [ open_ ]
+               [
+                 summary [] [ frontmatter ~cfg doc ];
+                 div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
+               ];
+           ];
+       ]
+    @
+    if opts.toc then
       [
-        section
-          [ class_ "block"; id ]
-          [
-            details [ open_ ]
-              [
-                summary [] [ frontmatter ~cfg doc ];
-                div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
-              ];
-          ];
         nav
           [ Dream_html.HTML.id "%s" "toc" ]
           [
             div [ class_ "block" ] [ h1 [] [ txt "Table of contents" ]; toc [] ];
           ];
       ]
+    else []
 
   and fourohfour addr = txt "%s not found" addr
   and with_fallback fof f got = match got with Some t -> f t | None -> fof

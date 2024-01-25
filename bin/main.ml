@@ -6,9 +6,8 @@ let () =
   let fatal diagnostics = Tty.display diagnostics in
   Eio_main.run @@ fun env ->
   Core.Reporter.run ~emit:Tty.display ~fatal @@ fun () ->
-  let forest = load env @@ fun () -> Loader.forest "./static" in
   let module Forest = struct
-    let forest = forest
+    let forest = load env @@ fun () -> Loader.forest "./static"
   end in
   let param s f req = Dream_html.respond @@ f @@ Dream.param req s in
   let module Renderer = Renderer (Forest) in
