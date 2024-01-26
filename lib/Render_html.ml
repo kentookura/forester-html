@@ -74,12 +74,23 @@ module Renderer (Forest : F) = struct
     (*     | None -> render_external_link ~title ~addr:dest) *)
     | Sem.Transclude (opts, addr) -> (
         match M.find_opt addr Forest.forest.trees with
-        | None -> txt ""
+        | None -> txt "Could not find tree at addr %s" addr
         | Some doc -> render_transclusion ~cfg ~opts doc)
     (*     match E.get_doc addr with *)
     | Sem.Query (a, b) -> render_query (a, b)
     | Sem.Xml_tag (a, b, c) -> ( match (a, b, c) with _ -> div [] [])
-    (* | Sem.Embed_tex a -> ( match a with _ -> div [] []) *)
+    | Sem.Embed_tex { packages; source } ->
+        div []
+          [
+            txt "%s" "Can't render embedded tex yet! Here is some info though:";
+            section []
+              [
+                txt "Packages: ";
+                ul [] @@ List.map (fun p -> li [] [ txt "%s" p ]) packages;
+                txt "Source:";
+                render_body ~cfg source;
+              ];
+          ]
     (* | Sem.Img a -> div [] (match a with _ -> div [] []) *)
     | Sem.Block (_a, _b) ->
         div []
@@ -99,8 +110,9 @@ module Renderer (Forest : F) = struct
         | `Pre, t -> pre [] [ render ~cfg t ]
         | `P, t -> HTML.p [] [ render ~cfg t ])
     | Sem.Unresolved a -> ( match a with _ -> div [] [ txt "unresolved" ])
-    | Sem.Object _ -> div [] [ txt "Can't render object" ]
-    | _ -> Dream_html.txt "%s" "todo"
+    | Sem.Object _o -> div [] [ txt "Can't render object" ]
+    | Sem.Img _a -> txt "todo img"
+  (* | _ -> Dream_html.txt "%s" "todo" *)
 
   and render_transclusion ~cfg ~opts doc =
     let cfg =
