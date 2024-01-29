@@ -2,24 +2,24 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
-    forester.url = "sourcehut:~jonsterling/ocaml-forester";
-    forest-server.url = "github:kentookura/forest-server";
+    opam-nix.url = "github:tweag/opam-nix";
   };
 
-  outputs = { self, nixpkgs, utils, forester, forest-server }:
+  outputs = { self, nixpkgs, utils, opam-nix }:
     utils.lib.eachDefaultSystem (system:
       let pkgs = import nixpkgs { inherit system; };
       in {
-        devShell = with pkgs;
+        legacyPackages = let
+          inherit (opam-nix.lib.${system}) buildOpamProject;
+          scope = buildOpamProject { } "forester_html" ./. {
+            ocaml-base-compiler = "5.1.1";
+          };
+        in scope;
+        defaultPackage = self.legacyPackages.${system}.forester_html;
+        devShells.default = with pkgs;
           mkShell {
-            buildInputs = [
-              libev
-              opam
-              ocamlPackages.odoc
-              forester.packages.${system}.default
-              forest-serer.packages.${system}.default
-            ];
-            shellHook = "eval $(opam env --switch=5.1.1)";
+            buildInputs = [ libev pkg-config openssl opam ];
+            shellHook = "eval $(opam env)";
           };
       });
 }
