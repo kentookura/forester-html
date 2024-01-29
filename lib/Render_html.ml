@@ -1,3 +1,4 @@
+open Render
 open Core
 open Sem
 open Dream_html
@@ -17,9 +18,41 @@ module type F = sig
   val forest : Forest.forest
 end
 
+module Verbatim = struct
+  type cfg = { tex : bool }
+
+  let rec render_node ~cfg : Sem.node Range.located -> string =
+   fun located ->
+    match located.value with
+    | Sem.Text t -> t
+    | Sem.Math (_, xs) -> render ~cfg xs
+    | _node ->
+        Reporter.fatalf ?loc:located.loc Type_error
+          "Render_verbatim: cannot render this kind of object"
+
+  and render ~cfg xs = String.concat " " @@ (List.map (render_node ~cfg)) xs
+  (*   let render_verbatim (located : Sem.node Range.located) : node = *)
+  (*     let render_verbatim_node = String.concat " " (List.map)  *)
+  (* let render =  *)
+  (*     match located.value with *)
+  (*     | Sem.Text t -> txt "%s" t *)
+  (*     | Sem.Math (_, xs) -> *)
+  (*         txt "\\(%s\\)" xs *)
+  (*         (* [ txt "\\(" ] *) *)
+  (*         (* @ (List.flatten @@ List.map render_verbatim xs) *) *)
+  (*         (* @ [ txt "\\)" ] *) *)
+  (*     | _node -> *)
+  (*         Reporter.fatalf ?loc:located.loc Type_error *)
+  (*           "Render_verbatim: cannot render this kind of object." *)
+end
+
 module Renderer (Forest : F) = struct
   module A = Analysis
+  module E = Render_effect.Perform
   module M = A.Map
+  open Forest
+
+  let get_doc addr = M.find_opt addr forest.trees
 
   let rec page addr =
     let cfg =
@@ -41,78 +74,81 @@ module Renderer (Forest : F) = struct
     | Some t -> base_template ~index:false @@ render_tree ~cfg ~opts t
     | None -> base_template ~index:false @@ fourohfour addr
 
-  and render ~cfg : Sem.t -> node =
-   fun t -> div [] @@ List.map (render_node ~cfg) t
+  and render ~cfg : Sem.t -> node list = fun t -> List.map (render_node ~cfg) t
 
   (* and index = base_template ~index:true @@ div [] [] *)
   and tooltip addr = div [] [ txt "%s" addr ]
   and query addr = div [] [ txt "%s" addr ]
 
-  and render_verbatim (located : Sem.node Range.located) =
-    match located.value with
-    | Sem.Text t -> txt "%s" t
-    | Sem.Math (_, xs) -> div [] @@ List.map render_verbatim xs
-    | _node ->
-        Reporter.fatalf ?loc:located.loc Type_error
-          "Render_verbatim: cannot render this kind of object."
-
   and render_node ~cfg (tree : Sem.node Range.located) =
     match tree.value with
     | Sem.Text t -> txt "%s" t
-    | Sem.Math (mode, body) ->
-        let attrs = match mode with Inline -> [] | Display -> [ id "" ] in
-        div attrs @@ List.map render_verbatim body
-    | Sem.Link { title; dest; _ } ->
-        let t =
-          match title with
-          | None -> txt "%s" dest
-          | Some node -> render_body ~cfg node
-        in
-        a [ href "%s" dest ] [ t ]
-    (*     match E.get_doc dest with *)
-    (*     | Some _ -> render_internal_link ~title ~addr:dest *)
-    (*     | None -> render_external_link ~title ~addr:dest) *)
+    | Sem.Math (mode, body) -> (
+        let _attrs = match mode with Inline -> [] | Display -> [ id "" ] in
+        let content = Verbatim.render ~cfg:{ Verbatim.tex = false } body in
+        match mode with
+        | Display -> txt "\\[%s\\]" content
+        | Inline -> txt "\\(%s\\)" content
+        (* List.flatten @@ List.map render_verbatim body *))
+    | Sem.Link { title; dest; modifier } -> (
+        match get_doc dest with
+        | Some _ -> render_internal_link ~title ~cfg ~modifier ~addr:dest
+        | None -> render_external_link ~title ~cfg ~modifier ~url:dest)
     | Sem.Transclude (opts, addr) -> (
         match M.find_opt addr Forest.forest.trees with
         | None -> txt "Could not find tree at addr %s" addr
         | Some doc -> render_transclusion ~cfg ~opts doc)
-    (*     match E.get_doc addr with *)
     | Sem.Query (a, b) -> render_query (a, b)
     | Sem.Xml_tag (a, b, c) -> ( match (a, b, c) with _ -> div [] [])
     | Sem.Embed_tex { packages; source } ->
-        div []
-          [
-            txt "%s" "Can't render embedded tex yet! Here is some info though:";
-            section []
-              [
-                txt "Packages: ";
-                ul [] @@ List.map (fun p -> li [] [ txt "%s" p ]) packages;
-                txt "Source:";
-                render_body ~cfg source;
-              ];
-          ]
+        (*  TODO: Verify that this works. Prolly not *)
+        let code =
+          Render_verbatim.Printer.contents
+          @@ Render_verbatim.render ~cfg:{ tex = true } source
+        in
+        let hash = Digest.to_hex @@ Digest.string code in
+        E.enqueue_latex ~name:hash ~packages ~source:code;
+        let path = Format.sprintf "resources/%s-web.svg" hash in
+        img [ src "%s" path ]
     (* | Sem.Img a -> div [] (match a with _ -> div [] []) *)
-    | Sem.Block (_a, _b) ->
-        div []
-          [ (* div [] @@ (fun t : Sem.node Range.located -> render_node t.value) a; *)
-            (* div [] @@ (fun t : Sem.node Range.located -> render_node t.value) b; *) ]
+    | Sem.Block (title, body) ->
+        div [ id "block" ] @@ render ~cfg title @ render ~cfg body
+        (*  TODO:  tag headline*)
     | Sem.If_tex (a, b) -> (
         match (a, b) with (_ : t), (_ : t) -> div [] [ txt "%s" "iftex" ])
-    | Sem.Prim ((p : Prim.t), (c : t)) -> (
+    | Sem.Prim (p, c) -> (
         match (p, c) with
-        | `Em, t -> em [] [ render ~cfg t ]
-        | `Strong, t -> strong [] [ render ~cfg t ]
-        | `Ul, t -> ul [] [ render ~cfg t ]
-        | `Li, t -> li [] [ render ~cfg t ]
-        | `Blockquote, t -> blockquote [] [ render ~cfg t ]
-        | `Code, t -> code [] [ render ~cfg t ]
-        | `Ol, t -> ol [] [ render ~cfg t ]
-        | `Pre, t -> pre [] [ render ~cfg t ]
-        | `P, t -> HTML.p [] [ render ~cfg t ])
+        | `Em, t -> em [] @@ render ~cfg t
+        | `Strong, t -> strong [] @@ render ~cfg t
+        | `Ul, t -> ul [] @@ render ~cfg t
+        | `Li, t -> li [] @@ render ~cfg t
+        | `Blockquote, t -> blockquote [] @@ render ~cfg t
+        | `Code, t -> code [] @@ render ~cfg t
+        | `Ol, t -> ol [] @@ render ~cfg t
+        | `Pre, t -> pre [] @@ render ~cfg t
+        | `P, t -> HTML.p [] @@ render ~cfg t)
     | Sem.Unresolved a -> ( match a with _ -> div [] [ txt "unresolved" ])
     | Sem.Object _o -> div [] [ txt "Can't render object" ]
     | Sem.Img _a -> txt "todo img"
   (* | _ -> Dream_html.txt "%s" "todo" *)
+
+  and render_internal_link ~cfg ~title ~modifier ~addr =
+    let doc = get_doc addr in
+    let doc_title = Option.bind doc @@ fun d -> d.title in
+    let title = Option.fold title ~none:doc_title ~some:Option.some in
+    let title = Option.map (Sem.apply_modifier modifier) title in
+    let title =
+      Option.value ~default:[ Range.locate_opt None @@ Sem.Text addr ] title
+    in
+    (* let target_title_attr = match doc_title with | None -> [] | Some t -> let title_string = String_util.sentence_case in  *)
+    a [ href "%s" addr ] @@ render ~cfg title
+
+  and render_external_link ~cfg ~title ~modifier ~url =
+    let title = Option.map (Sem.apply_modifier modifier) title in
+    let title =
+      Option.value ~default:[ Range.locate_opt None @@ Sem.Text url ] title
+    in
+    a [ href "%s" url ] @@ render ~cfg title
 
   and render_transclusion ~cfg ~opts doc =
     let cfg =
@@ -168,11 +204,40 @@ module Renderer (Forest : F) = struct
       ]
 
   (* and mainmatter ?mode:_string _tree = div [] [ backmatter _tree ] *)
-  and mainmatter ?mode:_string ~cfg tree = div [] [ render_body ~cfg tree.body ]
+  and mainmatter ?mode:_string ~cfg tree = div [] @@ render_body ~cfg tree.body
   and addr _ = div [] []
   and source_path _ = div [] []
-  and author _ = div [] []
-  and date _ = li [] [ a [] [] ]
+
+  and render_author (author : string) =
+    let cfg =
+      {
+        (* base_url = None; *)
+        top = false;
+        counter = ref 0;
+        in_backmatter = false;
+        seen = [];
+      }
+    in
+    match M.find_opt author Forest.forest.trees with
+    | Some bio -> (
+        match bio.addr with
+        | None -> txt "%s" author
+        | Some addr -> (
+            match bio.title with
+            | Some title -> a [ href "%s" addr ] @@ render ~cfg title
+            | _ -> txt "Untitled"))
+    | None -> txt "%s" author
+
+  (*
+  and render_authors (doc : Sem.tree) =
+    let contributors =
+      match doc.addr with Some addr -> contributors addr | None -> []
+    in
+    match (doc.authors, contributors) with
+    | [] [] -> nil
+    | authors, contributors -> div [] []
+
+   and render_date (doc : Sem.tree) =  *)
 
   and meta_item ~cfg (_i, (t : Sem.node Range.located list)) =
     li [ class_ "meta-item" ] @@ (t |> List.map (render_node ~cfg))
@@ -226,12 +291,9 @@ module Renderer (Forest : F) = struct
     let taxon = match tree.taxon with None -> "" | Some t -> t in
     let title =
       match tree.title with
-      | None -> div [] []
+      | None -> []
       | Some ts ->
-          div []
-          @@ List.map
-               (fun (t : Sem.node Range.located) -> render_node ~cfg t)
-               ts
+          List.map (fun (t : Sem.node Range.located) -> render_node ~cfg t) ts
     in
     let slug =
       match tree.addr with
@@ -240,13 +302,14 @@ module Renderer (Forest : F) = struct
     in
     header []
       [
-        h1 [] [ span [ class_ "taxon" ] [ txt "%s" taxon ]; title; slug ];
+        h1 []
+        @@ [ span [ class_ "taxon" ] [ txt "%s" taxon ] ]
+        @ title @ [ slug ];
         render_meta tree;
       ]
 
   and render_body ~cfg bdy =
-    div []
-    @@ List.map (fun (n : Sem.node Range.located) -> render_node ~cfg n) bdy
+    List.map (fun (n : Sem.node Range.located) -> render_node ~cfg n) bdy
 
   and render_tree ~cfg ~opts (doc : tree) =
     let doc =
@@ -259,22 +322,18 @@ module Renderer (Forest : F) = struct
       | Some _ as taxon -> { doc with taxon }
       | None -> doc
     in
-    let id =
+    let the_id =
       match doc.addr with
       | None -> id "unknown_tree"
       | Some addr -> id "%s" addr
     in
-    let _attrs =
+    let attrs =
       [
-        ("expanded", string_of_bool opts.expanded);
-        ("show-heading", string_of_bool opts.show_heading);
-        ("show-metadata", string_of_bool opts.show_metadata);
-        ("toc", string_of_bool opts.toc);
-        ("numbered", string_of_bool opts.numbered);
-        (* ( "root", *)
-        (*   string_of_bool *)
-        (*   @@ Option.fold doc.addr ~none:false ~some:(fun addr -> E.is_root addr) *)
-        (* ); *)
+        class_ (if opts.expanded then "" else "");
+        class_ (if opts.show_heading then "" else "");
+        class_ (if opts.show_metadata then "block" else "block hide-metadata");
+        class_ (if opts.toc then "" else "");
+        class_ (if opts.numbered then "" else "");
       ]
     in
     let _seen =
@@ -292,28 +351,27 @@ module Renderer (Forest : F) = struct
       | Some addr -> { cfg with seen = addr :: cfg.seen }
     in
 
-    article []
-    @@ [
-         section
-           [ class_ "block"; id ]
-           [
-             details [ open_ ]
+    div
+      [ id "grid-wrapper" ]
+      [
+        article []
+        @@ [
+             section
+               ([ class_ "block"; the_id ] @ attrs)
                [
-                 summary [] [ frontmatter ~cfg doc ];
-                 div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
+                 details [ open_ ]
+                   [
+                     summary [] [ frontmatter ~cfg doc ];
+                     div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
+                   ];
                ];
            ];
-       ]
-    @
-    if opts.toc then
-      [
         nav
           [ Dream_html.HTML.id "%s" "toc" ]
           [
             div [ class_ "block" ] [ h1 [] [ txt "Table of contents" ]; toc [] ];
           ];
       ]
-    else []
 
   and fourohfour addr = txt "%s not found" addr
   and with_fallback fof f got = match got with Some t -> f t | None -> fof
@@ -390,7 +448,7 @@ module Renderer (Forest : F) = struct
                      ]
                    else []);
               ];
-            div [ id "grid-wrapper" ] [ doc ];
+            doc (* div [ id "grid-wrapper" ] [ doc ]; *);
           ];
       ]
 
