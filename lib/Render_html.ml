@@ -1,4 +1,5 @@
 open Render
+open Prelude
 open Core
 open Sem
 open Dream_html
@@ -31,19 +32,6 @@ module Verbatim = struct
           "Render_verbatim: cannot render this kind of object"
 
   and render ~cfg xs = String.concat " " @@ (List.map (render_node ~cfg)) xs
-  (*   let render_verbatim (located : Sem.node Range.located) : node = *)
-  (*     let render_verbatim_node = String.concat " " (List.map)  *)
-  (* let render =  *)
-  (*     match located.value with *)
-  (*     | Sem.Text t -> txt "%s" t *)
-  (*     | Sem.Math (_, xs) -> *)
-  (*         txt "\\(%s\\)" xs *)
-  (*         (* [ txt "\\(" ] *) *)
-  (*         (* @ (List.flatten @@ List.map render_verbatim xs) *) *)
-  (*         (* @ [ txt "\\)" ] *) *)
-  (*     | _node -> *)
-  (*         Reporter.fatalf ?loc:located.loc Type_error *)
-  (*           "Render_verbatim: cannot render this kind of object." *)
 end
 
 module Renderer (Forest : F) = struct
@@ -71,12 +59,10 @@ module Renderer (Forest : F) = struct
         }
     in
     match M.find_opt addr Forest.forest.trees with
-    | Some t -> base_template ~index:false @@ render_tree ~cfg ~opts t
+    | Some t -> base_template ~index:false @@ render_tree_page ~cfg ~opts t
     | None -> base_template ~index:false @@ fourohfour addr
 
   and render ~cfg : Sem.t -> node list = fun t -> List.map (render_node ~cfg) t
-
-  (* and index = base_template ~index:true @@ div [] [] *)
   and tooltip addr = div [] [ txt "%s" addr ]
   and query addr = div [] [ txt "%s" addr ]
 
@@ -88,8 +74,7 @@ module Renderer (Forest : F) = struct
         let content = Verbatim.render ~cfg:{ Verbatim.tex = false } body in
         match mode with
         | Display -> txt "\\[%s\\]" content
-        | Inline -> txt "\\(%s\\)" content
-        (* List.flatten @@ List.map render_verbatim body *))
+        | Inline -> txt "\\(%s\\)" content)
     | Sem.Link { title; dest; modifier } -> (
         match get_doc dest with
         | Some _ -> render_internal_link ~title ~cfg ~modifier ~addr:dest
@@ -99,7 +84,15 @@ module Renderer (Forest : F) = struct
         | None -> txt "Could not find tree at addr %s" addr
         | Some doc -> render_transclusion ~cfg ~opts doc)
     | Sem.Query (a, b) -> render_query (a, b)
-    | Sem.Xml_tag (a, b, c) -> ( match (a, b, c) with _ -> div [] [])
+    | Sem.Xml_tag (_name, attrs, _xs) ->
+        let _attrs =
+          attrs
+          |> List.map @@ fun (k, v) ->
+             let txt = Verbatim.render ~cfg:{ Verbatim.tex = true } v in
+             (k, txt)
+        in
+        div [] []
+        (* match (a, b, c) with _ -> div [] []) *)
     | Sem.Embed_tex { packages; source } ->
         (*  TODO: Verify that this works. Prolly not *)
         let code =
@@ -136,12 +129,21 @@ module Renderer (Forest : F) = struct
     let doc = get_doc addr in
     let doc_title = Option.bind doc @@ fun d -> d.title in
     let title = Option.fold title ~none:doc_title ~some:Option.some in
+    let target_title_attr =
+      match doc_title with
+      | None -> []
+      | Some t ->
+          let title_string =
+            String_util.sentence_case @@ Render_text.Printer.contents
+            @@ Render_text.render t
+          in
+          [ HTML.title_ "%s" title_string ]
+    in
     let title = Option.map (Sem.apply_modifier modifier) title in
     let title =
       Option.value ~default:[ Range.locate_opt None @@ Sem.Text addr ] title
     in
-    (* let target_title_attr = match doc_title with | None -> [] | Some t -> let title_string = String_util.sentence_case in  *)
-    a [ href "%s" addr ] @@ render ~cfg title
+    a ([ href "%s" addr ] @ target_title_attr) @@ render ~cfg title
 
   and render_external_link ~cfg ~title ~modifier ~url =
     let title = Option.map (Sem.apply_modifier modifier) title in
@@ -180,7 +182,33 @@ module Renderer (Forest : F) = struct
         a [] [ span [ class_ "toc-item-label" ] [ txt "%s" content ] ];
       ]
 
-  and toc doc = ul [ class_ "block" ] (List.map toc_item doc)
+  and toc (doc : Sem.tree) ~cfg =
+    let rec transclusions (ns : Sem.node Range.located list) =
+      match ns with
+      | [] -> []
+      | { value = Transclude (_, addr); _ } :: xs -> (
+          match get_doc addr with
+          | Some (t : tree) -> (
+              match t.title with
+              | Some title ->
+                  li []
+                    [
+                      a [ href "%s" addr; class_ "bullet" ] [ txt "■" ];
+                      a
+                        [ href "#tree-" ]
+                        [
+                          span [] @@ render ~cfg title;
+                          div [] @@ transclusions t.body;
+                        ]
+                      (* render ~cfg title; *);
+                    ]
+                  :: transclusions xs
+              | None -> a [] [ txt "Unnamed tree" ] :: transclusions xs)
+          | None -> [])
+      | { value = _; _ } :: xs -> transclusions xs
+    in
+
+    ul [ class_ "block" ] (transclusions doc.body)
 
   and backmatter ~cfg (doc : Sem.tree) =
     let cfg = { cfg with counter = ref 0; in_backmatter = true; top = false } in
@@ -288,7 +316,9 @@ module Renderer (Forest : F) = struct
       ]
 
   and frontmatter ~cfg ?(_toc = true) (tree : tree) =
-    let taxon = match tree.taxon with None -> "" | Some t -> t in
+    let taxon =
+      match tree.taxon with None -> "" | Some t -> String_util.sentence_case t
+    in
     let title =
       match tree.title with
       | None -> []
@@ -331,7 +361,10 @@ module Renderer (Forest : F) = struct
       [
         class_ (if opts.expanded then "" else "");
         class_ (if opts.show_heading then "" else "");
-        class_ (if opts.show_metadata then "block" else "block hide-metadata");
+        (*  TODO: figure this out *)
+        class_
+          (if opts.show_metadata then "block hide-metadata"
+           else "block hide-metadata");
         class_ (if opts.toc then "" else "");
         class_ (if opts.numbered then "" else "");
       ]
@@ -351,30 +384,35 @@ module Renderer (Forest : F) = struct
       | Some addr -> { cfg with seen = addr :: cfg.seen }
     in
 
-    div
-      [ id "grid-wrapper" ]
-      [
-        article []
-        @@ [
-             section
-               ([ class_ "block"; the_id ] @ attrs)
+    article []
+    @@ [
+         section
+           ([ class_ "block"; the_id ] @ attrs)
+           [
+             details [ open_ ]
                [
-                 details [ open_ ]
-                   [
-                     summary [] [ frontmatter ~cfg doc ];
-                     div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
-                   ];
+                 summary [] [ frontmatter ~cfg doc ];
+                 div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
                ];
            ];
-        nav
-          [ Dream_html.HTML.id "%s" "toc" ]
-          [
-            div [ class_ "block" ] [ h1 [] [ txt "Table of contents" ]; toc [] ];
-          ];
-      ]
+       ]
 
   and fourohfour addr = txt "%s not found" addr
   and with_fallback fof f got = match got with Some t -> f t | None -> fof
+
+  and render_tree_page (doc : Sem.tree) ~cfg ~opts =
+    div
+      [ id "grid-wrapper" ]
+      [
+        render_tree ~cfg ~opts doc;
+        nav
+          [ Dream_html.HTML.id "%s" "toc" ]
+          [
+            div
+              [ class_ "block" ]
+              [ h1 [] [ txt "Table of contents" ]; toc ~cfg doc ];
+          ];
+      ]
 
   and base_template ~index doc =
     html
