@@ -384,18 +384,15 @@ module Renderer (Forest : F) = struct
       | Some addr -> { cfg with seen = addr :: cfg.seen }
     in
 
-    article []
-    @@ [
-         section
-           ([ class_ "block"; the_id ] @ attrs)
-           [
-             details [ open_ ]
-               [
-                 summary [] [ frontmatter ~cfg doc ];
-                 div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
-               ];
-           ];
-       ]
+    section
+      ([ class_ "block"; the_id ] @ attrs)
+      [
+        details [ open_ ]
+          [
+            summary [] [ frontmatter ~cfg doc ];
+            div [ class_ "tree-content" ] [ mainmatter ~cfg doc ];
+          ];
+      ]
 
   and fourohfour addr = txt "%s not found" addr
   and with_fallback fof f got = match got with Some t -> f t | None -> fof
@@ -404,7 +401,7 @@ module Renderer (Forest : F) = struct
     div
       [ id "grid-wrapper" ]
       [
-        render_tree ~cfg ~opts doc;
+        article [] [ render_tree ~cfg ~opts doc ];
         nav
           [ Dream_html.HTML.id "%s" "toc" ]
           [
