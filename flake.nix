@@ -1,25 +1,55 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    utils.url = "github:numtide/flake-utils";
     opam-nix.url = "github:tweag/opam-nix";
+    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.follows = "opam-nix/nixpkgs";
   };
+  outputs = { self, flake-utils, opam-nix, nixpkgs }@inputs:
+    let package = "forester_html";
+    in flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        on = opam-nix.lib.${system};
+        devPackagesQuery = {
+          ocaml-base-compiler = "5.1.1";
+          ocaml-lsp-server = "*";
+          ocamlformat = "*";
+        };
+        query = devPackagesQuery // { };
+        scope = on.buildOpamProject' { } ./. query;
+        overlay = final: prev: {
+          ${package} =
+            prev.${package}.overrideAttrs (_: { doNixSupport = false; });
+        };
+        scope' = scope.overrideScope' overlay;
+        main = scope'.${package};
+        devPackages = builtins.attrValues
+          (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope');
+        dockerImage = pkgs.dockerTools.buildImage {
+          name = "forester-html";
 
-  outputs = { self, nixpkgs, utils, opam-nix }:
-    utils.lib.eachDefaultSystem (system:
-      let pkgs = import nixpkgs { inherit system; };
+          copyToRoot = pkgs.buildEnv {
+            name = "image-root";
+            paths = [ ./static ];
+            pathsToLink = [ "/static" ];
+          };
+          config = { Cmd = [ "${main}/bin/forester_html" ]; };
+        };
       in {
-        legacyPackages = let
-          inherit (opam-nix.lib.${system}) buildOpamProject;
-          scope = buildOpamProject { } "forester_html" ./. {
-            ocaml-base-compiler = "5.1.1";
-          };
-        in scope;
-        defaultPackage = self.legacyPackages.${system}.forester_html;
-        devShells.default = with pkgs;
-          mkShell {
-            buildInputs = [ libev pkg-config openssl opam ];
-            shellHook = "eval $(opam env)";
-          };
+        legacyPackages = scope';
+
+        packages.default = main;
+        packages.docker = dockerImage;
+
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ main ];
+          buildInputs = with pkgs;
+            devPackages ++ [
+              libev
+              pkg-config
+              openssl
+              # You can add packages from nixpkgs here
+            ];
+        };
       });
 }
