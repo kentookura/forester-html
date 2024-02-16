@@ -3,8 +3,12 @@
     opam-nix.url = "github:tweag/opam-nix";
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.follows = "opam-nix/nixpkgs";
+    opam-repository.url = "github:ocaml/opam-repository";
+    opam-repository.flake = false;
+    forester.url = "sourcehut:~jonsterling/ocaml-forester";
   };
-  outputs = { self, flake-utils, opam-nix, nixpkgs }@inputs:
+  outputs =
+    { self, flake-utils, opam-nix, nixpkgs, forester, opam-repository }@inputs:
     let package = "forester_html";
     in flake-utils.lib.eachDefaultSystem (system:
       let
@@ -14,9 +18,17 @@
           ocaml-base-compiler = "5.1.1";
           ocaml-lsp-server = "*";
           ocamlformat = "*";
+          forester = "*";
+          # dream = "*";
+          # eio = "*";
+          # algaeff = "*";
+          # forester = "*";
+          # dream-html = "*";
         };
         query = devPackagesQuery // { };
-        scope = on.buildOpamProject' { } ./. query;
+        scope =
+          on.buildOpamProject' { repos = [ "${opam-repository}" forester ]; }
+          ./. query;
         overlay = final: prev: {
           ${package} =
             prev.${package}.overrideAttrs (_: { doNixSupport = false; });
@@ -44,12 +56,8 @@
         devShells.default = pkgs.mkShell {
           inputsFrom = [ main ];
           buildInputs = with pkgs;
-            devPackages ++ [
-              libev
-              pkg-config
-              openssl
-              # You can add packages from nixpkgs here
-            ];
+            devPackages
+            ++ [ libev pkg-config openssl texlive.combined.scheme-full ];
         };
       });
 }

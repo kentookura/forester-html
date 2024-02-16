@@ -15,15 +15,12 @@ let () =
   Eio_main.run @@ fun env ->
   Core.Reporter.run ~emit:Tty.display ~fatal @@ fun () ->
   let forest = load env @@ fun () -> Loader.forest "./static" in
-  S.run ~init:forest @@ fun () ->
   let param s f req = Dream_html.respond @@ f @@ Dream.param req s in
-  let page addr =
-    let forest = S.get () in
-    Renderer.page addr forest
-  in
+  let page addr = render_page addr forest in
   Dream.run ~port:1234 @@ Dream.logger
   @@ Dream.router
        [
+         (Dream.get "/" @@ fun _ -> Dream_html.respond index);
          Dream.get "/forest/:address" @@ param "address" page;
          ( Dream.get "/diagnostics" @@ fun _ ->
            Dream.websocket (fun websocket ->
