@@ -6,7 +6,17 @@ open Dream_html
 open HTML
 module Render_effect = Render_effect
 module Loader = Loader
+module Graphviz = Graphviz
 open Forester
+module S = Set.Make (String)
+module A = Analysis
+module M = A.Map
+module Tbl = A.Tbl
+module Gph = A.Gph
+open Forest
+
+type backmatter =
+  [ `References | `Context | `Backlinks | `Related | `Contributions ]
 
 type cfg = {
   counter : int ref;
@@ -76,13 +86,6 @@ module Verbatim = struct
 
   and render ~cfg xs = String.concat " " @@ (List.map (render_node ~cfg)) xs
 end
-
-(* module Renderer = struct *)
-module A = Analysis
-
-(* module E = Render_effect.Perform *)
-module M = A.Map
-open Forest
 
 let get_doc addr forest = M.find_opt addr forest.trees
 
@@ -366,6 +369,7 @@ and render_meta (tree : tree) =
     ]
 
 and frontmatter ~cfg ?(_toc = true) (tree : tree) forest =
+  let _ = Sem.sentence_case in
   let taxon =
     match tree.taxon with None -> "" | Some t -> String_util.sentence_case t
   in
@@ -375,7 +379,7 @@ and frontmatter ~cfg ?(_toc = true) (tree : tree) forest =
     | Some ts ->
         List.map
           (fun (t : Sem.node Range.located) -> render_node ~cfg t forest)
-          ts
+          (Sem.sentence_case ts)
   in
   let slug =
     match tree.addr with
@@ -442,6 +446,94 @@ and render_tree ~cfg ~opts (doc : tree) forest =
         ];
     ]
 
+and render_backmatter ~cfg (doc : tree) forest =
+  let cfg = { cfg with in_backmatter = true; top = false } in
+  let opts =
+    Sem.
+      {
+        title_override = None;
+        taxon_override = None;
+        toc = false;
+        show_heading = true;
+        expanded = false;
+        numbered = false;
+        show_metadata = true;
+      }
+  in
+  let analysis = Lazy.force forest.analysis in
+
+  let get_sorted_trees addrs : Sem.tree list =
+    let find addr =
+      match M.find_opt addr forest.trees with None -> [] | Some doc -> [ doc ]
+    in
+    Sem.Util.sort @@ List.concat_map find @@ S.elements addrs
+  in
+
+  let get_all_links scope =
+    get_sorted_trees @@ S.of_list @@ Gph.pred analysis.link_graph scope
+  in
+
+  let backlinks scope =
+    get_sorted_trees @@ S.of_list @@ Gph.succ analysis.link_graph scope
+  in
+
+  let related scope =
+    get_all_links scope
+    |> List.filter @@ fun (doc : Sem.tree) -> doc.taxon <> Some "reference"
+  in
+
+  let bibliography scope =
+    get_sorted_trees @@ S.of_list @@ A.Tbl.find_all analysis.bibliography scope
+  in
+
+  let parents scope =
+    get_sorted_trees @@ S.of_list @@ Gph.succ analysis.transclusion_graph scope
+  in
+
+  let contributions scope =
+    get_sorted_trees @@ S.of_list @@ Tbl.find_all analysis.author_pages scope
+  in
+
+  let item bm =
+    let title, content =
+      match doc.addr with
+      | None -> ("", [])
+      | Some addr -> (
+          match bm with
+          | `References ->
+              ( "References",
+                List.map
+                  (fun tree -> render_tree ~cfg ~opts tree forest)
+                  (bibliography addr) )
+          | `Context ->
+              ( "Context",
+                List.map
+                  (fun tree -> render_tree ~cfg ~opts tree forest)
+                  (parents addr) )
+          | `Backlinks ->
+              ( "Backlinks",
+                List.map
+                  (fun tree -> render_tree ~cfg ~opts tree forest)
+                  (backlinks addr) )
+          | `Related ->
+              ( "Related",
+                List.map
+                  (fun tree -> render_tree ~cfg ~opts tree forest)
+                  (related addr) )
+          | `Contributions ->
+              ( "Contributions",
+                List.map
+                  (fun tree -> render_tree ~cfg ~opts tree forest)
+                  (contributions addr) ))
+    in
+    section [ class_ "block link-list" ] (h2 [] [ txt "%s" title ] :: content)
+  in
+
+  footer []
+    (List.map item
+       [ `References; `Context; `Backlinks; `Related; `Contributions ])
+(* [ references; context; backlinks; related; contributions ] *)
+
 and fourohfour addr = txt "%s not found" addr
 and with_fallback fof f got = match got with Some t -> f t | None -> fof
 
@@ -449,7 +541,8 @@ and render_tree_page (doc : Sem.tree) ~cfg ~opts forest =
   div
     [ id "grid-wrapper" ]
     [
-      article [] [ render_tree ~cfg ~opts doc forest ];
+      article []
+        [ render_tree ~cfg ~opts doc forest; render_backmatter ~cfg doc forest ];
       nav
         [ Dream_html.HTML.id "%s" "toc" ]
         [
