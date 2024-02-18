@@ -18,17 +18,12 @@
           ocaml-base-compiler = "5.1.1";
           ocaml-lsp-server = "*";
           ocamlformat = "*";
+          wu-manber-fuzzy-search = "*";
           forester = "*";
-          # dream = "*";
-          # eio = "*";
-          # algaeff = "*";
-          # forester = "*";
-          # dream-html = "*";
         };
         query = devPackagesQuery // { };
         scope =
-          on.buildOpamProject' { repos = [ "${opam-repository}" forester ]; }
-          ./. query;
+          on.buildOpamProject' { repos = [ "${opam-repository}" ]; } ./. query;
         overlay = final: prev: {
           ${package} =
             prev.${package}.overrideAttrs (_: { doNixSupport = false; });

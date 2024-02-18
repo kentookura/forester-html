@@ -222,7 +222,7 @@ and render_query (a, b) =
   | _, Query.True ->
       div [] []
 
-and toc_item content =
+and _toc_item content =
   li []
     [
       a [ href ""; class_ "bullet"; title_ "%s" content ] [ txt "%s" "■" ];
@@ -230,32 +230,62 @@ and toc_item content =
     ]
 
 and toc (doc : Sem.tree) ~cfg forest =
-  let rec transclusions (ns : Sem.node Range.located list) =
-    match ns with
-    | [] -> []
-    | { value = Transclude (_, addr); _ } :: xs -> (
-        match get_doc addr forest with
-        | Some (t : tree) -> (
-            match t.title with
-            | Some title ->
-                li []
-                  [
-                    a [ href "%s" addr; class_ "bullet" ] [ txt "■" ];
-                    a
-                      [ href "#tree-" ]
-                      [
-                        span [] @@ render ~cfg title forest;
-                        div [] @@ transclusions t.body;
-                      ]
-                    (* render ~cfg title; *);
-                  ]
-                :: transclusions xs
-            | None -> a [] [ txt "Unnamed tree" ] :: transclusions xs)
-        | None -> [])
-    | { value = _; _ } :: xs -> transclusions xs
+  let item tree =
+    match (tree.title, tree.addr) with
+    | Some title, Some addr ->
+        li []
+          [
+            a [ href "%s" addr; class_ "bullet" ] [ txt "■" ];
+            a
+              [ href "#tree-" ]
+              [
+                span [] @@ render ~cfg title forest;
+                (* div [] @@ transclusions t.body; *)
+                (* div [] [ txt "TODO" ]; *)
+                toc ~cfg tree forest;
+              ]
+            (* render ~cfg title; *);
+          ]
+    | _ -> a [] [ txt "Unnamed tree" ]
+  in
+  let transclusions (ns : Sem.node Range.located list) =
+    ns
+    |> List.filter_map (fun n ->
+           match n with
+           | Range.{ value = Transclude (_, addr); _ } -> get_doc addr forest
+           | _ -> None)
+    |> List.map item
+    (*     match get_doc addr forest with *)
+    (* ) *)
+    (* match ns with *)
+    (* | [] -> [] *)
+    (* | { value = Transclude (_, addr); _ } :: xs -> ( *)
+    (*     match get_doc addr forest with *)
+    (*     | Some t -> [ item t ] *)
+    (*     | None -> *)
+    (*         [] *)
+    (*         (*     match t.title with *) *)
+    (*         (*     | Some title -> *) *)
+    (*         (*         li [] *) *)
+    (*         (*           [ *) *)
+    (*         (*             a [ href "%s" addr; class_ "bullet" ] [ txt "■" ]; *) *)
+    (*         (*             a *) *)
+    (*         (*               [ href "#tree-" ] *) *)
+    (*         (*               [ *) *)
+    (*         (*                 span [] @@ render ~cfg title forest; *) *)
+    (*         (*                 (* div [] @@ transclusions t.body; *) *) *)
+    (*         (*                 (* div [] [ txt "TODO" ]; *) *) *)
+    (*         (*                 toc ~cfg t forest; *) *)
+    (*         (*               ] *) *)
+    (*         (*             (* render ~cfg title; *); *) *)
+    (*         (*           ] *) *)
+    (*         (*         :: transclusions xs *) *)
+    (*         (*     | None -> a [] [ txt "Unnamed tree" ] :: transclusions xs) *) *)
+    (*         (* | None -> []) *)) *)
+    (* | { value = _; _ } :: xs -> transclusions xs *)
   in
 
-  ul [ class_ "block" ] (transclusions doc.body)
+  ol [ class_ "block" ] (transclusions doc.body)
 
 and backmatter ~cfg (doc : Sem.tree) forest =
   let cfg = { cfg with counter = ref 0; in_backmatter = true; top = false } in
