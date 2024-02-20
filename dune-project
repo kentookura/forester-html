@@ -19,7 +19,7 @@
  (name dream_auth)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune dream (dream-html (= 3.0.0)))
+ (depends ocaml dune dream (dream-html (= 3.0.0)) cmdliner ezcurl camlzip caqti caqti-driver-postgresql)
  (tags
   (topics "to describe" your project)))
 

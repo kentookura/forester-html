@@ -16,6 +16,7 @@
           ocaml-base-compiler = "5.1.1";
           ocaml-lsp-server = "*";
           ocamlformat = "*";
+          caqti-driver-postgresql = "*";
         };
         query = devPackagesQuery // { };
         scope =
@@ -28,16 +29,14 @@
         main = scope'.${package};
         devPackages = builtins.attrValues
           (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope');
-      in {
+      in rec {
         legacyPackages = scope';
 
         packages.default = main;
-
         devShells.default = pkgs.mkShell {
           inputsFrom = [ main ];
-          buildInputs = with pkgs;
-            devPackages
-            ++ [ pandoc libev pkg-config openssl sqlite beekeeper-studio ];
+          buildInputs = with pkgs; devPackages ++ [ dbeaver ];
+
         };
       });
 }

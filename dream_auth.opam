@@ -14,6 +14,11 @@ depends: [
   "dune" {>= "3.12"}
   "dream"
   "dream-html" {= "3.0.0"}
+  "cmdliner"
+  "ezcurl"
+  "camlzip"
+  "caqti"
+  "caqti-driver-postgresql"
   "odoc" {with-doc}
 ]
 build: [
