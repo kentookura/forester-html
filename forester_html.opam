@@ -18,6 +18,7 @@ depends: [
   "algaeff"
   "forester"
   "asai"
+  "wu-manber-fuzzy-search"
   "odoc" {with-doc}
 ]
 build: [

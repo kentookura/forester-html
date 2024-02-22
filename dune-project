@@ -20,7 +20,15 @@
  (name forester_html)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune dream dream-html algaeff forester asai)
+ (depends
+   ocaml
+   dune
+   dream
+   dream-html
+   algaeff
+   forester
+   asai
+   wu-manber-fuzzy-search)
  (tags
   (topics "to describe" your project)))
 
