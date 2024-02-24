@@ -13,6 +13,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         on = opam-nix.lib.${system};
         devPackagesQuery = {
+          # dune = "3.12";
           ocaml-base-compiler = "5.1.1";
           ocaml-lsp-server = "*";
           ocamlformat = "*";
@@ -20,7 +21,8 @@
         };
         query = devPackagesQuery // { };
         scope =
-          on.buildOpamProject' { repos = [ "${opam-repository}" ]; } ./. query;
+          on.buildDuneProject { repos = [ "${opam-repository}" ]; } "dream_auth"
+          ./. query;
         overlay = final: prev: {
           ${package} =
             prev.${package}.overrideAttrs (_: { doNixSupport = false; });

@@ -1,4 +1,5 @@
-(lang dune 3.12)
+(lang dune 3.7)
+; (lang dune 3.12)
 
 (name dream_auth)
 
@@ -19,7 +20,18 @@
  (name dream_auth)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune dream (dream-html (= 3.0.0)) cmdliner ezcurl camlzip caqti caqti-driver-postgresql)
+ (depends 
+   ocaml 
+   dune 
+   dream 
+   (dream-html (= 3.0.0)) 
+   cmdliner 
+   ezcurl 
+   camlzip 
+   caqti 
+   calendar
+   caqti-driver-postgresql 
+   forester)
  (tags
   (topics "to describe" your project)))
 
