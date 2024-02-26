@@ -51,8 +51,13 @@
         devShells.default = pkgs.mkShell {
           inputsFrom = [ main ];
           buildInputs = with pkgs;
-            devPackages
-            ++ [ libev pkg-config openssl texlive.combined.scheme-full ];
+            devPackages ++ [
+              libev
+              pkg-config
+              openssl
+              texlive.combined.scheme-full
+              dbeaver
+            ];
         };
       });
 }

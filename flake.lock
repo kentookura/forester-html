@@ -301,11 +301,11 @@
     "opam-repository_3": {
       "flake": false,
       "locked": {
-        "lastModified": 1708180812,
-        "narHash": "sha256-vGE1MVE68mSAUiN9T+qtAzzLi2SRZEM2XuKsbJzZlTo=",
+        "lastModified": 1708601497,
+        "narHash": "sha256-mDYINTjOiYLN4wT5fGlWTvHFQdWkzY46XUuZWKgmJxY=",
         "owner": "ocaml",
         "repo": "opam-repository",
-        "rev": "8b5a0a33b8f5dece20002390a216098b22c080d5",
+        "rev": "90d8c520a4f0b035ac51e267a8b33739c5a78b5a",
         "type": "github"
       },
       "original": {

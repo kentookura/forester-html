@@ -1,4 +1,5 @@
 (lang dune 3.12)
+;(lang dune 3.7)
 
 (name forester_html)
 (version a831375)
@@ -28,6 +29,13 @@
    algaeff
    forester
    asai
+   cmdliner 
+   ezcurl 
+   camlzip 
+   caqti 
+   calendar
+   caqti-driver-postgresql 
+   forester
    wu-manber-fuzzy-search)
  (tags
   (topics "to describe" your project)))

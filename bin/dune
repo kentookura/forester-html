@@ -4,6 +4,7 @@
  (preprocess
   (pps lwt_ppx))
  (libraries
+  wu-manber-fuzzy-search
   forester.frontend
   forester.core
   dream

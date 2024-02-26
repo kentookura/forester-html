@@ -18,6 +18,13 @@ depends: [
   "algaeff"
   "forester"
   "asai"
+  "cmdliner"
+  "ezcurl"
+  "camlzip"
+  "caqti"
+  "calendar"
+  "caqti-driver-postgresql"
+  "forester"
   "wu-manber-fuzzy-search"
   "odoc" {with-doc}
 ]

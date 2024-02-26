@@ -1,3 +1,5 @@
+(* TODO: render frontmatter only when top*)
+(* TODO: render taxa in toc *)
 open Render
 open Prelude
 open Core
@@ -167,7 +169,8 @@ and render_node ~cfg tree forest =
       | `Ol, t -> ol [] @@ render ~cfg t forest
       | `Pre, t -> pre [] @@ render ~cfg t forest
       | `P, t -> HTML.p [] @@ render ~cfg t forest)
-  | Sem.Unresolved a -> ( match a with _ -> div [] [ txt "unresolved" ])
+  | Sem.Unresolved a -> (
+      match a with _ -> div [] [ txt "unresolved identifier `\\%s`" a ])
   | Sem.Object _o -> div [] [ txt "Can't render object" ]
   | Sem.Img _a -> txt "todo img"
 (* | _ -> Dream_html.txt "%s" "todo" *)
@@ -222,13 +225,6 @@ and render_query (a, b) =
   | _, Query.True ->
       div [] []
 
-and _toc_item content =
-  li []
-    [
-      a [ href ""; class_ "bullet"; title_ "%s" content ] [ txt "%s" "■" ];
-      a [] [ span [ class_ "toc-item-label" ] [ txt "%s" content ] ];
-    ]
-
 and toc (doc : Sem.tree) ~cfg forest =
   let item tree =
     match (tree.title, tree.addr) with
@@ -238,13 +234,7 @@ and toc (doc : Sem.tree) ~cfg forest =
             a [ href "%s" addr; class_ "bullet" ] [ txt "■" ];
             a
               [ href "#tree-" ]
-              [
-                span [] @@ render ~cfg title forest;
-                (* div [] @@ transclusions t.body; *)
-                (* div [] [ txt "TODO" ]; *)
-                toc ~cfg tree forest;
-              ]
-            (* render ~cfg title; *);
+              [ span [] @@ render ~cfg title forest; toc ~cfg tree forest ];
           ]
     | _ -> a [] [ txt "Unnamed tree" ]
   in
@@ -255,34 +245,6 @@ and toc (doc : Sem.tree) ~cfg forest =
            | Range.{ value = Transclude (_, addr); _ } -> get_doc addr forest
            | _ -> None)
     |> List.map item
-    (*     match get_doc addr forest with *)
-    (* ) *)
-    (* match ns with *)
-    (* | [] -> [] *)
-    (* | { value = Transclude (_, addr); _ } :: xs -> ( *)
-    (*     match get_doc addr forest with *)
-    (*     | Some t -> [ item t ] *)
-    (*     | None -> *)
-    (*         [] *)
-    (*         (*     match t.title with *) *)
-    (*         (*     | Some title -> *) *)
-    (*         (*         li [] *) *)
-    (*         (*           [ *) *)
-    (*         (*             a [ href "%s" addr; class_ "bullet" ] [ txt "■" ]; *) *)
-    (*         (*             a *) *)
-    (*         (*               [ href "#tree-" ] *) *)
-    (*         (*               [ *) *)
-    (*         (*                 span [] @@ render ~cfg title forest; *) *)
-    (*         (*                 (* div [] @@ transclusions t.body; *) *) *)
-    (*         (*                 (* div [] [ txt "TODO" ]; *) *) *)
-    (*         (*                 toc ~cfg t forest; *) *)
-    (*         (*               ] *) *)
-    (*         (*             (* render ~cfg title; *); *) *)
-    (*         (*           ] *) *)
-    (*         (*         :: transclusions xs *) *)
-    (*         (*     | None -> a [] [ txt "Unnamed tree" ] :: transclusions xs) *) *)
-    (*         (* | None -> []) *)) *)
-    (* | { value = _; _ } :: xs -> transclusions xs *)
   in
 
   ol [ class_ "block" ] (transclusions doc.body)
@@ -416,10 +378,16 @@ and frontmatter ~cfg ?(_toc = true) (tree : tree) forest =
     | None -> div [] []
     | Some s -> a [ class_ "slug"; href "%s" s ] [ txt "[%s]" s ]
   in
+  let edit_button =
+    match tree.source_path with
+    | Some path -> a [ href "nvim://%s" path ] [ txt "[edit]" ]
+    | None -> txt ""
+  in
   header []
     [
       h1 [] @@ [ span [ class_ "taxon" ] [ txt "%s" taxon ] ] @ title @ [ slug ];
       render_meta tree;
+      edit_button;
     ]
 
 and render_body ~cfg bdy forest =
@@ -441,12 +409,10 @@ and render_tree ~cfg ~opts (doc : tree) forest =
   in
   let attrs =
     [
-      class_ (if opts.expanded then "" else "");
+      (if opts.expanded then open_ else attr "");
       class_ (if opts.show_heading then "" else "");
       (*  TODO: figure this out *)
-      class_
-        (if opts.show_metadata then "block hide-metadata"
-         else "block hide-metadata");
+      class_ (if opts.show_metadata then "block hide-metadata" else "block");
       class_ (if opts.toc then "" else "");
       class_ (if opts.numbered then "" else "");
     ]
@@ -582,24 +548,16 @@ and render_tree_page (doc : Sem.tree) ~cfg ~opts forest =
         ];
     ]
 
-and base_template ~index doc =
+and base_template ~index
+    ~(req : Dream_pure.Message.client Dream_pure.Message.message) (doc : node) =
   html
     [ lang "en" ]
     [
       head []
         [
           meta [ name "viewport"; content "width=device-width" ];
-          title [] "HTMX+Dream+Effects";
-          (* script [] *)
-          (* "\n\ *)
-             (*   \                var socket = new WebSocket(\"ws://\" + \ *)
-             (*    window.location.host + \"/diagnostics\");\n\n\ *)
-             (*   \    socket.onopen = function () {\n\ *)
-             (*   \      socket.send(\"Hello?\");\n\ *)
-             (*   \    };\n\n\ *)
-             (*   \    socket.onmessage = function (e) {\n\ *)
-             (*   \      alert(e.data);\n\ *)
-             (*   \    };\n"; *)
+          title [] "Forest";
+          script [ src "https://unpkg.com/hyperscript.org@0.9.12" ] "";
           script
             [
               src "https://unpkg.com/htmx.org@1.9.10";
@@ -608,7 +566,7 @@ and base_template ~index doc =
               crossorigin `anonymous;
             ]
             "";
-          script [ src "https://unpkg.com/htmx.org/dist/ext/sse.js" ] "";
+          script [ src "https://unpkg.com/htmx.org/dist/ext/ws.js" ] "";
           link [ rel "stylesheet"; href "/static/style.css" ];
           link [ rel "stylesheet"; href "/static/prism.css" ];
           link
@@ -661,13 +619,66 @@ and base_template ~index doc =
                 [ class_ "nav" ]
                 (if not index then
                    [ div [ class_ "logo" ] [ a [ href "/" ] [ txt "« Home" ] ] ]
-                 else []);
+                 else
+                   []
+                   @ [
+                       span [ class_ "htmx-indicator" ] [];
+                       form []
+                         [
+                           input
+                             [
+                               type_ "hidden";
+                               name "dream.csrf";
+                               value "%s" (Dream.csrf_token req);
+                             ];
+                           input
+                             [
+                               class_ "form-control";
+                               type_ "search";
+                               name "search";
+                               placeholder "Begin typing to search trees";
+                               Hx.post "/search";
+                               Hx.trigger "input changed delay:500ms, search";
+                               Hx.target "#search-results";
+                               Hx.indicator ".htmx-indicator";
+                             ];
+                         ];
+                       table
+                         [ class_ "table" ]
+                         [
+                           thead []
+                             [
+                               tr []
+                                 [
+                                   th [] [ txt "First Name" ];
+                                   th [] [ txt "Last Name" ];
+                                   th [] [ txt "Email" ];
+                                 ];
+                             ];
+                           tbody [ id "search-results" ] [];
+                         ];
+                     ]);
             ];
           doc (* div [ id "grid-wrapper" ] [ doc ]; *);
         ];
     ]
 
-let index : node =
-  base_template ~index:true
-    (pre [] [ code [ class_ "language-css" ] [ txt "p {color: red}" ] ])
+and hyper scrpt = (string_attr "_") "%s" scrpt
+
+let index req : node =
+  base_template ~index:true ~req
+    (div []
+       [
+         div
+           [ Hx.ext "ws"; Hx.ws_connect "/diagnostics" ]
+           [ div [ id "chat_room" ] [] ];
+         button
+           [
+             Hx.trigger "click, keyup[ctrlKey&&key=='K'] from:body";
+             Hx.post "/search";
+             (* hyper "on keyup prevent default"; *)
+           ]
+           [ txt "hello" ];
+         code [ class_ "language-css" ] [ txt "p {color: red}" ];
+       ])
 (* end *)
