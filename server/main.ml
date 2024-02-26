@@ -38,8 +38,16 @@ let base_template stuff =
           meta
             [ name "viewport"; content "width=device-width, initial-scale=1.0" ];
           script [ src "https://cdn.tailwindcss.com?plugins=forms" ] "";
+          script
+            [
+              src "https://unpkg.com/htmx.org@1.9.10";
+              integrity
+                "sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC";
+              crossorigin `anonymous;
+            ]
+            "";
+          body [ class_ "h-full" ] [ stuff ];
         ];
-      body [ class_ "h-full" ] [ stuff ];
     ]
 
 let login_request_handler req =
@@ -68,16 +76,28 @@ let render comments request =
            ];
        ]
 
-let () =
+let _unused =
   Dream.run ~interface:"0.0.0.0"
   @@ Dream.logger
-  @@ Dream.sql_pool "postgresql://dream:password@postgres/dream"
-  @@ Dream.sql_sessions
+  (* @@ Dream.sql_pool "postgresql://dream:password@postgres/dream" *)
+  (* @@ Dream.sql_sessions *)
   @@ Dream.router
        [
          Dream.get "/" (fun _ -> Dream_html.respond @@ base_template Index.page);
          Dream.get "/login" (fun req ->
              Dream_html.respond @@ base_template @@ Auth.login_page req);
+         Dream.get "/courses" (fun _req ->
+             Dream_html.respond @@ base_template
+             @@ Schedule.show_in_month (CalendarLib.Date.today ()));
+         Dream.get "/calendar" (fun _ ->
+             Dream_html.respond @@ base_template
+             @@ Schedule.show_in_month (CalendarLib.Date.today ()));
+         ( Dream.get "calendar/:year/:month/:day" @@ fun req ->
+           let year = int_of_string @@ Dream.param req "year" in
+           let month = int_of_string @@ Dream.param req "month" in
+           let day = int_of_string @@ Dream.param req "day" in
+           let date = CalendarLib.Date.make year month day in
+           Dream_html.respond @@ Schedule.show_in_month date );
          Dream.post "/login" login_request_handler;
          Dream.get "/signup" (fun req ->
              Dream_html.respond @@ base_template @@ Auth.signup_page req);
