@@ -57,6 +57,7 @@
               openssl
               texlive.combined.scheme-full
               dbeaver
+              nodePackages.katex
             ];
         };
       });

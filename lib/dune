@@ -1,3 +1,10 @@
 (library
- (libraries dream-html forester.core forester.frontend eio wu-manber-fuzzy-search)
- (name Render_html))
+ (name Render_html)
+ (libraries 
+   dream-html
+   forester.core
+   forester.frontend
+   eio 
+   calendar
+   wu-manber-fuzzy-search)
+ (public_name forester_html.render))

@@ -102,7 +102,7 @@ let header =
         ];
     ]
 
-let page =
+let page content =
   div
     [ class_ "min-h-full" ]
-    [ header; div [ id "content"; class_ "py-10" ] [] ]
+    [ header; div [ id "content"; class_ "py-10" ] [ content ] ]

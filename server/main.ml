@@ -1,3 +1,4 @@
+(*
 open Dream_html
 open HTML
 
@@ -75,7 +76,6 @@ let render comments request =
                [ csrf_tag request; input [ name "text"; autofocus ] ];
            ];
        ]
-
 let _unused =
   Dream.run ~interface:"0.0.0.0"
   @@ Dream.logger
@@ -83,7 +83,7 @@ let _unused =
   (* @@ Dream.sql_sessions *)
   @@ Dream.router
        [
-         Dream.get "/" (fun _ -> Dream_html.respond @@ base_template Index.page);
+         (* Dream.get "/" (fun _ -> Dream_html.respond @@ base_template Index.page); *)
          Dream.get "/login" (fun req ->
              Dream_html.respond @@ base_template @@ Auth.login_page req);
          Dream.get "/courses" (fun _req ->
@@ -113,3 +113,4 @@ let _unused =
                  Dream.redirect request "/"
              | _ -> Dream.empty `Bad_Request);
        ]
+*)
