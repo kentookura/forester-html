@@ -1,2 +1,27 @@
 (test
- (name test_forester_html))
+ (name test_forester_html)
+ (deps (glob_files deps/*))
+ (libraries Render_html forester.core forester.frontend))
+
+(rule
+ (with-stdout-to
+  output.html
+  (run ./test_forester_html.exe)))
+
+(rule 
+  (target tmp.html)
+  (action (run saxon-he -s:output/test.xml -xsl:deps/forest.xsl -o:tmp.html)))
+
+(rule 
+  (with-stdout-to got.html
+  (run prettier output.html)))
+
+(rule 
+  (with-stdout-to
+  expected.html
+  (run prettier tmp.html )))
+
+(rule
+ (alias runtest)
+ (action
+  (diff expected.html got.html)))
